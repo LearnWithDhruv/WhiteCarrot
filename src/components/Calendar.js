@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCalendarEvents, postCalendarEvent } from '../services/api'; // Backend API calls
+import { fetchCalendarEvents, postCalendarEvent } from '../services/api'; 
 
 const Calendar = () => {
     const [events, setEvents] = useState([]);
