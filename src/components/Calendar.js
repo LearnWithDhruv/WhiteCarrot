@@ -18,7 +18,7 @@ const Calendar = () => {
     const loadEvents = async () => {
         try {
             const response = await fetchCalendarEvents();
-            setEvents(response.data || []); // Ensure we have an array
+            setEvents(response.data || []); 
         } catch (error) {
             console.error('Failed to fetch events:', error);
             setError('Failed to load events');
@@ -28,7 +28,7 @@ const Calendar = () => {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setNewEvent(prev => ({ ...prev, [name]: value }));
-        setError(''); // Clear any previous errors
+        setError(''); 
     };
 
     const resetForm = () => {
@@ -57,37 +57,29 @@ const Calendar = () => {
     };
 
     const handleAddEvent = async () => {
-        // Clear previous errors
         setError('');
 
-        // Validate event details
         if (!validateEvent()) {
             return;
         }
 
         try {
-            // Combine date and time into a single ISO string
             const eventDateTime = new Date(`${newEvent.date}T${newEvent.time}`);
             
-            // Prepare event object
             const eventToAdd = {
                 summary: newEvent.summary.trim(),
                 location: newEvent.location.trim() || null,
                 dateTime: eventDateTime.toISOString(),
             };
 
-            // Post the event
             const response = await postCalendarEvent(eventToAdd);
 
-            // Check if event was successfully added
             if (response && (response.status === 200 || response.status === 201)) {
-                // Reload events to get updated list
                 await loadEvents();
                 
                 // Reset the form
                 resetForm();
                 
-                // Optional: Show success message
                 setError('Event added successfully!');
             } else {
                 throw new Error('Unexpected response from server');
