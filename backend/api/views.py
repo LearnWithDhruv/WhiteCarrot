@@ -9,7 +9,11 @@ from django.conf import settings
 import time, logging
 from .models import GoogleCredentials
 from google.auth.transport.requests import Request
-
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import CalendarEvent
+from .serializers import CalendarEventSerializer
 logger = logging.getLogger(__name__)
 
 class GoogleLoginView(APIView):
@@ -37,86 +41,23 @@ class GoogleLoginView(APIView):
 
 
 class CalendarEventsView(APIView):
+    
     def get(self, request):
-        try:
-            user_credentials = GoogleCredentials.objects.get(email=request.user.email)
-            
-            credentials = Credentials(
-                None,
-                refresh_token=user_credentials.refresh_token,
-                token_uri='https://oauth2.googleapis.com/token',
-                client_id=settings.GOOGLE_OAUTH_CLIENT_ID,
-                client_secret=settings.GOOGLE_OAUTH_CLIENT_SECRET,
-            )
-            credentials.refresh(Request())
-            
-            service = build('calendar', 'v3', credentials=credentials)
-            
-            events_result = service.events().list(calendarId='primary', maxResults=10).execute()
-            events = events_result.get('items', [])
-            
-            formatted_events = [{
-                'summary': event.get('summary', ''),
-                'dateTime': event.get('start', {}).get('dateTime') or event.get('start', {}).get('date'),
-                'location': event.get('location', '') or None
-            } for event in events]
-            
-            return Response(formatted_events)
         
-        except GoogleCredentials.DoesNotExist:
-            return Response({'error': 'User not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            events = CalendarEvent.objects.all()
+            serializer = CalendarEventSerializer(events, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"Event fetch error: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': 'Failed to fetch events', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def post(self, request):
+       
         try:
-            # Authenticate and get user credentials
-            user_credentials = GoogleCredentials.objects.get(email=request.user.email)
-            
-            # Create Google Calendar service
-            credentials = Credentials(
-                None,
-                refresh_token=user_credentials.refresh_token,
-                token_uri='https://oauth2.googleapis.com/token',
-                client_id=settings.GOOGLE_OAUTH_CLIENT_ID,
-                client_secret=settings.GOOGLE_OAUTH_CLIENT_SECRET,
-            )
-            credentials.refresh(Request())
-            
-            service = build('calendar', 'v3', credentials=credentials)
-            
-            required_fields = ['summary', 'dateTime']
-            for field in required_fields:
-                if field not in request.data:
-                    return Response({'error': f'Missing {field}'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            event = {
-                'summary': request.data['summary'],
-                'location': request.data.get('location'),
-                'start': {
-                    'dateTime': request.data['dateTime'],
-                    'timeZone': 'UTC'
-                },
-                'end': {
-                    'dateTime': request.data['dateTime'],
-                    'timeZone': 'UTC'
-                }
-            }
-            
-            created_event = service.events().insert(calendarId='primary', body=event).execute()
-            
-            return Response({
-                'event': {
-                    'summary': created_event['summary'],
-                    'dateTime': created_event['start'].get('dateTime'),
-                    'location': created_event.get('location')
-                }
-            }, status=status.HTTP_201_CREATED)
-        
-        except GoogleCredentials.DoesNotExist:
-            return Response({'error': 'User not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+            serializer = CalendarEventSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'message': 'Event added successfully'}, status=status.HTTP_201_CREATED)
+            return Response({'error': 'Invalid data', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Event creation error: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response({'error': 'Failed to add event', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
